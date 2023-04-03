@@ -1,6 +1,7 @@
 package cgroup
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 )
@@ -10,15 +11,16 @@ func TestCGroupResult(t *testing.T) {
 	size := 10
 	taskCount := 100
 
-	c := New(size, func(i interface{}) {
-		a := i.(int64)
-		atomic.AddInt64(&sum, a)
-	})
+	c := New(size)
 	for i := 0; i <= taskCount; i++ {
-		c.Push(int64(i))
+		a := int64(i)
+		c.Push(func() {
+			atomic.AddInt64(&sum, a)
+		})
 	}
 
-	c.Wait()
+	c.Async()
+	fmt.Println(sum)
 	if sum != 5050 {
 		t.Fatalf("the value should equal 5050, but got %v", sum)
 	}

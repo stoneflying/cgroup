@@ -1,7 +1,7 @@
 # cgroup
 A more friendly implementation of limiting the number of concurrent coroutines
 
-## Example:
+## basic example:
 ```
 package main
 
@@ -15,22 +15,22 @@ func main() {
 	size := 10
 	taskCount := 100
 
-	c := cgroup.New(size, func(i interface{}) {
-		a := i.(int64)
-		atomic.AddInt64(&sum, a)
-	})
+	c := cgroup.New(size)
 	for i := 0; i <= taskCount; i++ {
-		c.Push(int64(i))
+		a := int64(i)
+		c.Push(func() {
+			atomic.AddInt64(&sum, a)
+		})
 	}
 
-	c.Wait()
+	c.Async()
 	if sum != 5050 {
 		panic("the value should equal 5050")
 	}
 }
 ```
 
-## Installation
+## installation
 ```
 go get github.com/stoneflying/cgroup
 ```
