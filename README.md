@@ -1,4 +1,4 @@
-# CGroup
+# cgroup
 A more friendly implementation of limiting the number of concurrent coroutines
 
 ## Example:
@@ -6,7 +6,7 @@ A more friendly implementation of limiting the number of concurrent coroutines
 package main
 
 import (
-	"github.com/StoneFlying/CGroup"
+	"github.com/stoneflying/cgroup"
 	"sync/atomic"
 )
 
@@ -32,5 +32,5 @@ func main() {
 
 ## Installation
 ```
-go get github.com/StoneFlying/CGroup
+go get github.com/stoneflying/cgroup
 ```
