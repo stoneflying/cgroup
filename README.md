@@ -23,7 +23,7 @@ func main() {
 		})
 	}
 
-	c.Async()
+	c.Wait()
 	if sum != 5050 {
 		panic("the value should equal 5050")
 	}

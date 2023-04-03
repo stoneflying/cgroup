@@ -1,7 +1,6 @@
 package cgroup
 
 import (
-	"fmt"
 	"sync/atomic"
 	"testing"
 )
@@ -19,8 +18,7 @@ func TestCGroupResult(t *testing.T) {
 		})
 	}
 
-	c.Async()
-	fmt.Println(sum)
+	c.Wait()
 	if sum != 5050 {
 		t.Fatalf("the value should equal 5050, but got %v", sum)
 	}
