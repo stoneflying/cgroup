@@ -1,14 +1,21 @@
 # CGroup
-limit the number of concurrent goroutines
+A more friendly implementation of limiting the number of concurrent coroutines
 
-## example:
+## Example:
 ```
+package main
+
+import (
+	"github.com/StoneFlying/CGroup"
+	"sync/atomic"
+)
+
 func main() {
 	sum := int64(0)
 	size := 10
 	taskCount := 100
 
-	c := New(size, func(i interface{}) {
+	c := cgroup.New(size, func(i interface{}) {
 		a := i.(int64)
 		atomic.AddInt64(&sum, a)
 	})
@@ -21,5 +28,9 @@ func main() {
 		panic("the value should equal 5050")
 	}
 }
+```
 
+## Installation
+```
+go get github.com/StoneFlying/CGroup
 ```
