@@ -60,9 +60,9 @@ func main() {
         fmt.Println("Task 2 started")
         time.Sleep(1 * time.Second)
         fmt.Println("Task 2 finished")
-	})
+     })
 
-	c.Submit(func() {
+    c.Submit(func() {
         fmt.Println("Task 3 started")
         time.Sleep(3 * time.Second)
         fmt.Println("Task 3 finished")
