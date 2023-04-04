@@ -16,7 +16,7 @@ type Task func()
 
 // CGroup represents a group of goroutines that can be executed concurrently.
 type CGroup struct {
-	Concurrency int
+	concurrency int
 	taskQueue   chan Task
 	stop        int32
 	wg          sync.WaitGroup
@@ -29,7 +29,7 @@ func New(concurrency int) *CGroup {
 		concurrency = runtime.NumCPU()
 	}
 	cg := &CGroup{
-		Concurrency: concurrency,
+		concurrency: concurrency,
 		taskQueue:   make(chan Task),
 		wg:          sync.WaitGroup{},
 		stop:        stopSubmitNo,
@@ -45,7 +45,7 @@ func (cg *CGroup) run() {
 	taskList := list.New()
 
 	stopSelect := false
-	taskLimit := make(chan struct{}, cg.Concurrency)
+	taskLimit := make(chan struct{}, cg.concurrency)
 	cg.wg.Add(1)
 
 	for {
