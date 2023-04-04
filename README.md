@@ -66,10 +66,10 @@ func main() {
         fmt.Println("Task 3 started")
         time.Sleep(3 * time.Second)
         fmt.Println("Task 3 finished")
-	})
+     })
 
     c.Wait()
-	fmt.Println("All tasks finished")
+    fmt.Println("All tasks finished")
 }
 ```
 
