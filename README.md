@@ -1,10 +1,15 @@
 ## cgroup
-cgroup is a simple Go package that provides a way to execute a group of goroutines concurrently with a limited number of parallelism.
+CGroup is a simple Go library that provides an easy way to execute tasks concurrently with controlled concurrency. It is designed to help manage and limit the number of concurrent tasks that are executed in a Go program.
 
-## Usage
-#### 1.Import the package:
+## Features
+#### 1.Ability to control the maximum number of tasks running concurrently
+#### 2.Asynchronous execution of tasks
+#### 3.Simple and easy to use API
+
+## Getting Started
+#### 1.Installation:
 ```
-import "github.com/stoneflying/cgroup"
+go get github.com/stoneflying/cgroup
 ```
 
 #### 2.Create a new CGroup with the desired number of parallelism:
@@ -17,7 +22,7 @@ c := cgroup.New(5)
 ```
 // Submit a task
 c.Submit(func() {
-// code to be executed concurrently
+    // code to be executed concurrently
 })
 ```
 
@@ -45,31 +50,30 @@ import (
 
 func main() {
     c := New(2)
+    c.Submit(func() {
+        fmt.Println("Task 1 started")
+        time.Sleep(2 * time.Second)
+        fmt.Println("Task 1 finished")
+    })
 
-	c.Submit(func() {
-		fmt.Println("Task 1 started")
-		time.Sleep(2 * time.Second)
-		fmt.Println("Task 1 finished")
+    c.Submit(func() {
+        fmt.Println("Task 2 started")
+        time.Sleep(1 * time.Second)
+        fmt.Println("Task 2 finished")
 	})
 
 	c.Submit(func() {
-		fmt.Println("Task 2 started")
-		time.Sleep(1 * time.Second)
-		fmt.Println("Task 2 finished")
+        fmt.Println("Task 3 started")
+        time.Sleep(3 * time.Second)
+        fmt.Println("Task 3 finished")
 	})
 
-	c.Submit(func() {
-		fmt.Println("Task 3 started")
-		time.Sleep(3 * time.Second)
-		fmt.Println("Task 3 finished")
-	})
-
-	c.Wait()
+    c.Wait()
 	fmt.Println("All tasks finished")
 }
 ```
 
-## Output:
+### Output:
 ```
 Task 1 started
 Task 2 started
@@ -79,3 +83,9 @@ Task 3 started
 Task 3 finished
 All tasks finished
 ```
+
+## Contributing
+Contributions are welcome!   
+For bug reports or feature requests, please open an issue.   
+For pull requests, please make sure your changes are covered by tests and 
+follow the same coding standards as the existing code.
