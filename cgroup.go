@@ -2,17 +2,22 @@ package cgroup
 
 import (
 	"sync"
+	"sync/atomic"
+)
+
+const (
+	stopSubmitNo = 1 << iota
+	stopSubmitYes
 )
 
 type Handle func()
-
-var releaseFn = Handle(func() {})
 
 // A CGroup instance represents a group of goroutine that
 // can be executed concurrently
 type CGroup struct {
 	size int
 	push chan Handle
+	stop int32
 	wg   sync.WaitGroup
 }
 
@@ -23,6 +28,7 @@ func New(size int) *CGroup {
 		size: size,
 		push: make(chan Handle),
 		wg:   sync.WaitGroup{},
+		stop: stopSubmitNo,
 	}
 
 	go c.run()
@@ -31,17 +37,16 @@ func New(size int) *CGroup {
 }
 
 func (c *CGroup) run() {
-	count := 0
 	buf := make([]Handle, 0, c.size)
-	stopPush := false
+	stopSelect := false
+	ch := make(chan struct{}, c.size)
 
 	for {
-		if !stopPush {
+		if !stopSelect {
 			select {
-			case val := <-c.push:
-				if &val == &releaseFn {
-					close(c.push)
-					stopPush = true
+			case val, ok := <-c.push:
+				if !ok {
+					stopSelect = true
 					continue
 				}
 				c.wg.Add(1)
@@ -49,14 +54,19 @@ func (c *CGroup) run() {
 			}
 		}
 
-		for (count < c.size || c.size <= 0) && len(buf) > 0 {
-			count += 1
+		if c.stop == stopSubmitYes && len(buf) == 0 {
+			return
+		}
+
+		for len(buf) > 0 {
+			ch <- struct{}{}
 			handle := buf[0]
 			buf = buf[1:]
+
 			go func() {
 				defer func() {
+					<-ch
 					c.wg.Done()
-					count -= 1
 				}()
 				handle()
 			}()
@@ -65,18 +75,15 @@ func (c *CGroup) run() {
 }
 
 // Submit a fn that needs to be executed.
-func (c *CGroup) Submit(fn func()) *CGroup {
+// When pushed a nil fn, after pushed data will be ignored.
+func (c *CGroup) Submit(fn func()) {
 	c.push <- fn
-	return c
-}
-
-// Release resources, you should always call this to avoid possible resource leaks.
-func (c *CGroup) Release() {
-	c.Submit(releaseFn)
 }
 
 // Wait Block until all functions are executed.
 func (c *CGroup) Wait() {
-	c.Submit(releaseFn)
+	if atomic.CompareAndSwapInt32(&c.stop, stopSubmitNo, stopSubmitYes) {
+		close(c.push)
+	}
 	c.wg.Wait()
 }
