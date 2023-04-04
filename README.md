@@ -1,5 +1,5 @@
 # cgroup
-A more friendly implementation of limiting the number of concurrent coroutines
+simple and easy to concurrency limit in go
 
 ## basic example:
 ```
