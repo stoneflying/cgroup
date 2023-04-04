@@ -1,6 +1,8 @@
 package cgroup
 
 import (
+	"container/list"
+	"runtime"
 	"sync"
 	"sync/atomic"
 )
@@ -10,80 +12,106 @@ const (
 	stopSubmitYes
 )
 
-type Handle func()
+type Task func()
 
-// A CGroup instance represents a group of goroutine that
-// can be executed concurrently
+// CGroup represents a group of goroutines that can be executed concurrently.
 type CGroup struct {
-	size int
-	push chan Handle
-	stop int32
-	wg   sync.WaitGroup
+	Concurrency int
+	taskQueue   chan Task
+	stop        int32
+	wg          sync.WaitGroup
 }
 
-// New create a concurrency limit instance.
-// When size is less than or equal to zero, it means that there is no limit to the number of concurrency
-func New(size int) *CGroup {
-	c := &CGroup{
-		size: size,
-		push: make(chan Handle),
-		wg:   sync.WaitGroup{},
-		stop: stopSubmitNo,
+// New creates a new instance of CGroup with the given size.
+// When size is less than or equal to zero, concurrency will default set to numCpu.
+func New(concurrency int) *CGroup {
+	if concurrency <= 0 {
+		concurrency = runtime.NumCPU()
+	}
+	cg := &CGroup{
+		Concurrency: concurrency,
+		taskQueue:   make(chan Task),
+		wg:          sync.WaitGroup{},
+		stop:        stopSubmitNo,
 	}
 
-	go c.run()
+	go cg.run()
 
-	return c
+	return cg
 }
 
-func (c *CGroup) run() {
-	buf := make([]Handle, 0, c.size)
+// run the goroutines that are waiting in the queue.
+func (cg *CGroup) run() {
+	taskList := list.New()
+
 	stopSelect := false
-	ch := make(chan struct{}, c.size)
+	taskLimit := make(chan struct{}, cg.Concurrency)
+	cg.wg.Add(1)
 
 	for {
 		if !stopSelect {
 			select {
-			case val, ok := <-c.push:
+			case task, ok := <-cg.taskQueue:
 				if !ok {
 					stopSelect = true
 					continue
 				}
-				c.wg.Add(1)
-				buf = append(buf, val)
+				cg.wg.Add(1)
+				taskList.PushBack(task)
 			}
 		}
 
-		if c.stop == stopSubmitYes && len(buf) == 0 {
+		if cg.stop == stopSubmitYes && taskList.Len() == 0 && stopSelect {
+			cg.wg.Done()
 			return
 		}
 
-		for len(buf) > 0 {
-			ch <- struct{}{}
-			handle := buf[0]
-			buf = buf[1:]
-
+		for e := taskList.Front(); e != nil; e = e.Next() {
+			taskLimit <- struct{}{}
+			taskList.Remove(e)
+			task := e.Value.(Task)
 			go func() {
 				defer func() {
-					<-ch
-					c.wg.Done()
+					recover()
+					<-taskLimit
+					cg.wg.Done()
 				}()
-				handle()
+				task()
 			}()
 		}
 	}
 }
 
-// Submit a fn that needs to be executed.
-// When pushed a nil fn, after pushed data will be ignored.
-func (c *CGroup) Submit(fn func()) {
-	c.push <- fn
+func (cg *CGroup) reset() {
+	cg.taskQueue = make(chan Task)
+	cg.wg = sync.WaitGroup{}
+	go cg.run()
 }
 
-// Wait Block until all functions are executed.
-func (c *CGroup) Wait() {
-	if atomic.CompareAndSwapInt32(&c.stop, stopSubmitNo, stopSubmitYes) {
-		close(c.push)
+// Submit submits a task that needs to be executed.
+// If Wait has already been called, the task will be ignored.
+func (cg *CGroup) Submit(task Task) {
+	if cg.stop == stopSubmitYes {
+		if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitYes, stopSubmitNo) {
+			cg.reset()
+		}
 	}
-	c.wg.Wait()
+	cg.taskQueue <- task
+}
+
+// Wait blocks until all tasks are executed.
+func (cg *CGroup) Wait() {
+	if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitNo, stopSubmitYes) {
+		close(cg.taskQueue)
+		cg.wg.Wait()
+		return
+	}
+}
+
+// Async will cause previously added unfinished tasks to execute asynchronously without blocking waiting.
+func (cg *CGroup) Async() {
+	if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitNo, stopSubmitYes) {
+		close(cg.taskQueue)
+		return
+	}
 }
