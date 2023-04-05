@@ -38,38 +38,38 @@ c.Wait()
 c.Async()
 ```
 
-## Example
+## Basic example
 ```
 package main
 
 import (
-    "fmt"
-    "github.com/username/cgroup"
-    "time"
+	"fmt"
+	"github.com/stoneflying/cgroup"
+	"time"
 )
 
 func main() {
-    c := New(2)
-    c.Submit(func() {
-        fmt.Println("Task 1 started")
-        time.Sleep(2 * time.Second)
-        fmt.Println("Task 1 finished")
-    })
+	c := cgroup.New(2)
+	c.Submit(func() {
+		fmt.Println("Task 1 started")
+		time.Sleep(2 * time.Second)
+		fmt.Println("Task 1 finished")
+	})
 
-    c.Submit(func() {
-        fmt.Println("Task 2 started")
-        time.Sleep(1 * time.Second)
-        fmt.Println("Task 2 finished")
-     })
+	c.Submit(func() {
+		fmt.Println("Task 2 started")
+		time.Sleep(1 * time.Second)
+		fmt.Println("Task 2 finished")
+	})
 
-    c.Submit(func() {
-        fmt.Println("Task 3 started")
-        time.Sleep(3 * time.Second)
-        fmt.Println("Task 3 finished")
-     })
+	c.Submit(func() {
+		fmt.Println("Task 3 started")
+		time.Sleep(3 * time.Second)
+		fmt.Println("Task 3 finished")
+	})
 
-    c.Wait()
-    fmt.Println("All tasks finished")
+	c.Wait()
+	fmt.Println("All tasks finished")
 }
 ```
 
@@ -78,8 +78,8 @@ func main() {
 Task 1 started
 Task 2 started
 Task 2 finished
-Task 1 finished
 Task 3 started
+Task 1 finished
 Task 3 finished
 All tasks finished
 ```

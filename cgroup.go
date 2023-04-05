@@ -23,7 +23,7 @@ type CGroup struct {
 }
 
 // New creates a new instance of CGroup with the given size.
-// When size is less than or equal to zero, concurrency will default set to numCpu.
+// When concurrency is less than or equal to 0, it will be set to runtime.NumCPU() by default.
 func New(concurrency int) *CGroup {
 	if concurrency <= 0 {
 		concurrency = runtime.NumCPU()
@@ -89,7 +89,6 @@ func (cg *CGroup) reset() {
 }
 
 // Submit submits a task that needs to be executed.
-// If Wait has already been called, the task will be ignored.
 func (cg *CGroup) Submit(task Task) {
 	if cg.stop == stopSubmitYes {
 		if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitYes, stopSubmitNo) {
@@ -99,7 +98,7 @@ func (cg *CGroup) Submit(task Task) {
 	cg.taskQueue <- task
 }
 
-// Wait blocks until all tasks are executed.
+// Wait blocks until all added tasks are executed.
 func (cg *CGroup) Wait() {
 	if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitNo, stopSubmitYes) {
 		close(cg.taskQueue)

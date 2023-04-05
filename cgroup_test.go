@@ -46,6 +46,6 @@ func TestCGroupResult(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 	if sum != 15150 {
-		t.Fatalf("the value should equal 10100, but got %v", sum)
+		t.Fatalf("the value should equal 10150, but got %v", sum)
 	}
 }
