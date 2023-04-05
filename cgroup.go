@@ -13,6 +13,9 @@ const (
 )
 
 type Task func()
+type Logger interface {
+	Printf(format string, args ...interface{})
+}
 
 // CGroup represents a group of goroutines that can be executed concurrently.
 type CGroup struct {
@@ -20,19 +23,24 @@ type CGroup struct {
 	taskQueue   chan Task
 	stop        int32
 	wg          sync.WaitGroup
+	options     *Options
 }
 
 // New creates a new instance of CGroup with the given size.
 // When concurrency is less than or equal to 0, it will be set to runtime.NumCPU() by default.
-func New(concurrency int) *CGroup {
+func New(concurrency int, options ...Option) *CGroup {
+	opts := loadOptions(options...)
+
 	if concurrency <= 0 {
 		concurrency = runtime.NumCPU()
 	}
+
 	cg := &CGroup{
 		concurrency: concurrency,
 		taskQueue:   make(chan Task),
 		wg:          sync.WaitGroup{},
 		stop:        stopSubmitNo,
+		options:     opts,
 	}
 
 	go cg.run()
@@ -45,7 +53,8 @@ func (cg *CGroup) run() {
 	taskList := list.New()
 
 	stopSelect := false
-	taskLimit := make(chan struct{}, cg.concurrency)
+	limit := make(chan struct{}, cg.concurrency)
+
 	cg.wg.Add(1)
 
 	for {
@@ -67,13 +76,22 @@ func (cg *CGroup) run() {
 		}
 
 		for e := taskList.Front(); e != nil; e = e.Next() {
-			taskLimit <- struct{}{}
+			limit <- struct{}{}
 			taskList.Remove(e)
 			task := e.Value.(Task)
 			go func() {
 				defer func() {
-					recover()
-					<-taskLimit
+					if p := recover(); p != nil {
+						if ph := cg.options.PanicHandler; ph != nil {
+							ph(p)
+						} else {
+							cg.options.Logger.Printf("task panic stack begin: %v\n", p)
+							var buf [4096]byte
+							n := runtime.Stack(buf[:], false)
+							cg.options.Logger.Printf("task panic stack end: %s\n", string(buf[:n]))
+						}
+					}
+					<-limit
 					cg.wg.Done()
 				}()
 				task()
