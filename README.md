@@ -5,6 +5,7 @@ CGroup is a simple Go library that provides an easy way to execute tasks concurr
 #### 1.Ability to control the maximum number of tasks running concurrently
 #### 2.Asynchronous execution of tasks
 #### 3.Simple and easy to use API
+#### 4.non-blocking cubmit task
 
 ## Getting Started
 #### 1.Installation:
