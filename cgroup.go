@@ -111,6 +111,8 @@ func (cg *CGroup) Submit(task Task) {
 	if cg.stop == stopSubmitYes {
 		if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitYes, stopSubmitNo) {
 			cg.reset()
+			cg.taskQueue <- task
+			return
 		}
 	}
 	cg.taskQueue <- task
