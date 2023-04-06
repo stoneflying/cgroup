@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	stopSubmitNo = 1 << iota
-	stopSubmitYes
+	submitTaskFlag = 1 << iota
+	syncWaitFlag
+	asyncRunningFlag
 )
 
 type Task func()
@@ -21,7 +22,7 @@ type Logger interface {
 type CGroup struct {
 	concurrency int
 	taskQueue   chan Task
-	stop        int32
+	status      int32
 	wg          sync.WaitGroup
 	options     *Options
 }
@@ -39,7 +40,7 @@ func New(concurrency int, options ...Option) *CGroup {
 		concurrency: concurrency,
 		taskQueue:   make(chan Task),
 		wg:          sync.WaitGroup{},
-		stop:        stopSubmitNo,
+		status:      submitTaskFlag,
 		options:     opts,
 	}
 
@@ -70,7 +71,7 @@ func (cg *CGroup) run() {
 			}
 		}
 
-		if cg.stop == stopSubmitYes && taskList.Len() == 0 && stopSelect {
+		if (cg.status == syncWaitFlag || cg.status == asyncRunningFlag) && taskList.Len() == 0 && stopSelect {
 			cg.wg.Done()
 			return
 		}
@@ -108,19 +109,18 @@ func (cg *CGroup) reset() {
 
 // Submit submits a task that needs to be executed.
 func (cg *CGroup) Submit(task Task) {
-	if cg.stop == stopSubmitYes {
-		if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitYes, stopSubmitNo) {
+	if cg.status != submitTaskFlag {
+		if atomic.CompareAndSwapInt32(&cg.status, cg.status&syncWaitFlag|cg.status&asyncRunningFlag, submitTaskFlag) {
 			cg.reset()
-			cg.taskQueue <- task
-			return
 		}
 	}
 	cg.taskQueue <- task
+	return
 }
 
 // Wait blocks until all added tasks are executed.
 func (cg *CGroup) Wait() {
-	if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitNo, stopSubmitYes) {
+	if atomic.CompareAndSwapInt32(&cg.status, submitTaskFlag, syncWaitFlag) {
 		close(cg.taskQueue)
 		cg.wg.Wait()
 		return
@@ -129,7 +129,7 @@ func (cg *CGroup) Wait() {
 
 // Async will cause previously added unfinished tasks to execute asynchronously without blocking waiting.
 func (cg *CGroup) Async() {
-	if atomic.CompareAndSwapInt32(&cg.stop, stopSubmitNo, stopSubmitYes) {
+	if atomic.CompareAndSwapInt32(&cg.status, submitTaskFlag, asyncRunningFlag) {
 		close(cg.taskQueue)
 		return
 	}
