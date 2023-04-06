@@ -71,7 +71,7 @@ func (cg *CGroup) run() {
 			}
 		}
 
-		if (cg.status == syncWaitFlag || cg.status == asyncRunningFlag) && taskList.Len() == 0 && stopSelect {
+		if (cg.status&(syncWaitFlag|asyncRunningFlag) != 0) && taskList.Len() == 0 && stopSelect {
 			cg.wg.Done()
 			return
 		}
