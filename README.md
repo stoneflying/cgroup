@@ -85,6 +85,11 @@ Task 3 finished
 All tasks finished
 ```
 
+## Attention
+#### 1.You should always call await or async func at last, otherwise there will be resource leaks.
+#### 2.When you called async or await func, you should not continue to add execution func.
+#### 3.Don't repeat call async and await func.
+
 ## Contributing
 Contributions are welcome!   
 For bug reports or feature requests, please open an issue.   

@@ -4,13 +4,6 @@ import (
 	"container/list"
 	"runtime"
 	"sync"
-	"sync/atomic"
-)
-
-const (
-	submitTaskFlag = 1 << iota
-	syncWaitFlag
-	asyncRunningFlag
 )
 
 type Task func()
@@ -21,8 +14,7 @@ type Logger interface {
 // CGroup represents a group of goroutines that can be executed concurrently.
 type CGroup struct {
 	concurrency int
-	taskQueue   chan Task
-	status      int32
+	push        chan Task
 	wg          sync.WaitGroup
 	options     *Options
 }
@@ -38,9 +30,8 @@ func New(concurrency int, options ...Option) *CGroup {
 
 	cg := &CGroup{
 		concurrency: concurrency,
-		taskQueue:   make(chan Task),
+		push:        make(chan Task),
 		wg:          sync.WaitGroup{},
-		status:      submitTaskFlag,
 		options:     opts,
 	}
 
@@ -51,7 +42,7 @@ func New(concurrency int, options ...Option) *CGroup {
 
 // run the goroutines that are waiting in the queue.
 func (cg *CGroup) run() {
-	taskList := list.New()
+	taskQueue := list.New()
 
 	stopSelect := false
 	limit := make(chan struct{}, cg.concurrency)
@@ -61,24 +52,24 @@ func (cg *CGroup) run() {
 	for {
 		if !stopSelect {
 			select {
-			case task, ok := <-cg.taskQueue:
+			case task, ok := <-cg.push:
 				if !ok {
 					stopSelect = true
 					continue
 				}
 				cg.wg.Add(1)
-				taskList.PushBack(task)
+				taskQueue.PushBack(task)
 			}
 		}
 
-		if (cg.status&(syncWaitFlag|asyncRunningFlag) != 0) && taskList.Len() == 0 && stopSelect {
+		if taskQueue.Len() == 0 && stopSelect {
 			cg.wg.Done()
 			return
 		}
 
-		for e := taskList.Front(); e != nil; e = e.Next() {
+		for e := taskQueue.Front(); e != nil; e = e.Next() {
 			limit <- struct{}{}
-			taskList.Remove(e)
+			taskQueue.Remove(e)
 			task := e.Value.(Task)
 			go func() {
 				defer func() {
@@ -101,36 +92,18 @@ func (cg *CGroup) run() {
 	}
 }
 
-func (cg *CGroup) reset() {
-	cg.taskQueue = make(chan Task)
-	cg.wg = sync.WaitGroup{}
-	go cg.run()
-}
-
 // Submit submits a task that needs to be executed.
 func (cg *CGroup) Submit(task Task) {
-	if cg.status != submitTaskFlag {
-		if atomic.CompareAndSwapInt32(&cg.status, cg.status&syncWaitFlag|cg.status&asyncRunningFlag, submitTaskFlag) {
-			cg.reset()
-		}
-	}
-	cg.taskQueue <- task
-	return
+	cg.push <- task
 }
 
 // Wait blocks until all added tasks are executed.
 func (cg *CGroup) Wait() {
-	if atomic.CompareAndSwapInt32(&cg.status, submitTaskFlag, syncWaitFlag) {
-		close(cg.taskQueue)
-		cg.wg.Wait()
-		return
-	}
+	close(cg.push)
+	cg.wg.Wait()
 }
 
 // Async will cause previously added unfinished tasks to execute asynchronously without blocking waiting.
 func (cg *CGroup) Async() {
-	if atomic.CompareAndSwapInt32(&cg.status, submitTaskFlag, asyncRunningFlag) {
-		close(cg.taskQueue)
-		return
-	}
+	close(cg.push)
 }
