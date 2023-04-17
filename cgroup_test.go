@@ -12,6 +12,7 @@ func TestCGroupResult(t *testing.T) {
 	taskCount := 1000
 
 	c := New(size)
+	defer c.Release()
 
 	for i := 1; i <= taskCount; i++ {
 		a := int64(i)
@@ -27,6 +28,7 @@ func TestCGroupResult(t *testing.T) {
 
 	sum = 0
 	c2 := New(size)
+	defer c2.Release()
 	for i := 1; i <= taskCount; i++ {
 		a := int64(i)
 		c2.Submit(func() {
@@ -34,7 +36,6 @@ func TestCGroupResult(t *testing.T) {
 		})
 	}
 
-	c2.Async()
 	time.Sleep(3 * time.Second)
 	if sum != 500500 {
 		t.Fatalf("the value should equal 5050, but got %v", sum)

@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"runtime"
 	"sync"
+	"sync/atomic"
 )
 
 type Task func()
@@ -11,12 +12,19 @@ type Logger interface {
 	Printf(format string, args ...interface{})
 }
 
+const (
+	OPENED = iota << 1
+	CLOSED
+)
+
 // CGroup represents a group of goroutines that can be executed concurrently.
 type CGroup struct {
 	concurrency int
 	push        chan Task
 	wg          sync.WaitGroup
 	options     *Options
+	status      int32
+	taskQueue   *list.List
 }
 
 // New creates a new instance of CGroup with the given size.
@@ -33,6 +41,8 @@ func New(concurrency int, options ...Option) *CGroup {
 		push:        make(chan Task),
 		wg:          sync.WaitGroup{},
 		options:     opts,
+		status:      OPENED,
+		taskQueue:   list.New(),
 	}
 
 	go cg.run()
@@ -42,8 +52,6 @@ func New(concurrency int, options ...Option) *CGroup {
 
 // run the goroutines that are waiting in the queue.
 func (cg *CGroup) run() {
-	taskQueue := list.New()
-
 	stopSelect := false
 	limit := make(chan struct{}, cg.concurrency)
 
@@ -58,18 +66,18 @@ func (cg *CGroup) run() {
 					continue
 				}
 				cg.wg.Add(1)
-				taskQueue.PushBack(task)
+				cg.taskQueue.PushBack(task)
 			}
 		}
 
-		if taskQueue.Len() == 0 && stopSelect {
+		if cg.taskQueue.Len() == 0 && stopSelect {
 			cg.wg.Done()
 			return
 		}
 
-		for e := taskQueue.Front(); e != nil; e = e.Next() {
+		for e := cg.taskQueue.Front(); e != nil; e = e.Next() {
 			limit <- struct{}{}
-			taskQueue.Remove(e)
+			cg.taskQueue.Remove(e)
 			task := e.Value.(Task)
 			go func() {
 				defer func() {
@@ -92,18 +100,35 @@ func (cg *CGroup) run() {
 	}
 }
 
+func (cg *CGroup) reset() {
+	close(cg.push)
+}
+
 // Submit submits a task that needs to be executed.
 func (cg *CGroup) Submit(task Task) {
+	if cg.IsClosed() {
+		return
+	}
 	cg.push <- task
 }
 
 // Wait blocks until all added tasks are executed.
 func (cg *CGroup) Wait() {
-	close(cg.push)
+	if cg.IsClosed() {
+		return
+	}
+	cg.Release()
 	cg.wg.Wait()
 }
 
-// Async will cause previously added unfinished tasks to execute asynchronously without blocking waiting.
-func (cg *CGroup) Async() {
-	close(cg.push)
+// Release will cause previously added unfinished tasks to execute asynchronously without blocking waiting.
+func (cg *CGroup) Release() {
+	if !atomic.CompareAndSwapInt32(&cg.status, OPENED, CLOSED) {
+		return
+	}
+	cg.reset()
+}
+
+func (cg *CGroup) IsClosed() bool {
+	return atomic.LoadInt32(&cg.status) == CLOSED
 }
