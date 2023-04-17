@@ -33,12 +33,6 @@ c.Submit(func() {
 c.Wait()
 ```
 
-#### 5.Optionally, if you need to execute the tasks asynchronously without blocking, you can use the Async method:
-```
-// Execute the tasks asynchronously
-c.Async()
-```
-
 ## Basic example
 ```
 package main
