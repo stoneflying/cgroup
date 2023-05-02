@@ -52,31 +52,42 @@ func New(concurrency int, options ...Option) *CGroup {
 
 // run the goroutines that are waiting in the queue.
 func (cg *CGroup) run() {
-	stopSelect := false
+	stop := false
 	limit := make(chan struct{}, cg.concurrency)
-
 	cg.wg.Add(1)
 
-	for {
-		if !stopSelect {
-			select {
-			case task, ok := <-cg.push:
-				if !ok {
-					stopSelect = true
-					continue
-				}
-				cg.wg.Add(1)
-				cg.taskQueue.PushBack(task)
-			}
+	pushFn := func(task Task, ok bool) (end bool) {
+		if !ok {
+			stop = true
+			cg.push = make(chan Task, 0)
+			return true
 		}
+		cg.wg.Add(1)
+		cg.taskQueue.PushBack(task)
+		return false
+	}
 
-		if cg.taskQueue.Len() == 0 && stopSelect {
+	for {
+		if cg.taskQueue.Len() == 0 && stop {
 			cg.wg.Done()
 			return
 		}
 
-		for e := cg.taskQueue.Front(); e != nil; e = e.Next() {
-			limit <- struct{}{}
+		select {
+		case task, ok := <-cg.push:
+			if pushFn(task, ok) {
+				continue
+			}
+		case limit <- struct{}{}:
+			if cg.taskQueue.Len() == 0 {
+				select {
+				case task, ok := <-cg.push:
+					if pushFn(task, ok) {
+						continue
+					}
+				}
+			}
+			e := cg.taskQueue.Front()
 			cg.taskQueue.Remove(e)
 			task := e.Value.(Task)
 			go func() {
@@ -106,7 +117,7 @@ func (cg *CGroup) reset() {
 
 // Submit submits a task that needs to be executed.
 func (cg *CGroup) Submit(task Task) {
-	if cg.IsClosed() {
+	if cg.isClosed() {
 		return
 	}
 	cg.push <- task
@@ -114,7 +125,7 @@ func (cg *CGroup) Submit(task Task) {
 
 // Wait blocks until all added tasks are executed.
 func (cg *CGroup) Wait() {
-	if cg.IsClosed() {
+	if cg.isClosed() {
 		return
 	}
 	cg.Release()
@@ -129,6 +140,6 @@ func (cg *CGroup) Release() {
 	cg.reset()
 }
 
-func (cg *CGroup) IsClosed() bool {
+func (cg *CGroup) isClosed() bool {
 	return atomic.LoadInt32(&cg.status) == CLOSED
 }
